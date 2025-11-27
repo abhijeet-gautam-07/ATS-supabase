@@ -1,5 +1,6 @@
 // app/api/extract/route.ts
 import { NextResponse } from "next/server";
+import { extractText } from "unpdf";
 import mammoth from "mammoth";
 
 export const runtime = "nodejs";
@@ -15,145 +16,157 @@ function extFromUrl(url: string | undefined) {
   }
 }
 
-async function tryPdfParse(): Promise<((buffer: Buffer) => Promise<any>) | null> {
-  try {
-    const mod: any = await import("pdf-parse");
-    const fn = mod?.default ?? mod;
-    if (typeof fn === "function") return fn;
-  } catch (err) {
-    console.warn("pdf-parse dynamic import failed:", String(err));
-  }
-
-  try {
-    // require fallback
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const pdfParseCjs: any = require("pdf-parse");
-    const fn = pdfParseCjs?.default ?? pdfParseCjs;
-    if (typeof fn === "function") return fn;
-  } catch (err) {
-    console.warn("pdf-parse require fallback failed:", String(err));
-  }
-
-  return null;
+function summarizeResult(res: any) {
+  if (!res) return null;
+  const out: any = {};
+  const text = typeof res.text === "string" ? res.text : "";
+  out.textLength = text.length;
+  if (Array.isArray(res.pages)) out.pages = res.pages.length;
+  return out;
 }
 
-/**
- * Use pdfjs-dist at runtime; disable workers so pdf.worker.mjs is not required.
- * We use createRequire(import.meta.url) so bundler doesn't try to resolve at build time.
- */
-function requirePdfJsRuntime(): any {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { createRequire } = require("module");
-  const req = createRequire(import.meta.url);
-
-  const candidates = [
-    "pdfjs-dist/legacy/build/pdf.js",
-    "pdfjs-dist/legacy/build/pdf",
-    "pdfjs-dist/build/pdf.js",
-    "pdfjs-dist/build/pdf",
-    "pdfjs-dist"
-  ];
-
-  const tried: string[] = [];
-  for (const name of candidates) {
-    try {
-      const mod = req(name);
-      if (mod) return mod;
-    } catch (err: any) {
-      tried.push(`${name}: ${String(err?.message ?? err)}`);
+/** Call OCR.Space as a fallback. Returns parsed text or null on failure. */
+async function callOcrSpaceByUrl(fileUrl: string, apiKey: string): Promise<string | null> {
+  try {
+    const form = new FormData();
+    form.append("apikey", apiKey);
+    form.append("url", fileUrl);
+    // optional params:
+    form.append("language", "eng");
+    form.append("isOverlayRequired", "false");
+    // timeout and keep response small
+    const res = await fetch("https://api.ocr.space/parse/image", {
+      method: "POST",
+      body: form,
+    });
+    if (!res.ok) {
+      console.warn("OCR.space responded not ok", res.status);
+      return null;
     }
+    const json = await res.json().catch(() => null);
+    if (!json) return null;
+    // parse structure: { ParsedResults: [{ ParsedText: "..." }], OCRExitCode: 1, IsErroredOnProcessing: false }
+    if (Array.isArray(json.ParsedResults) && json.ParsedResults.length > 0) {
+      const parsed = json.ParsedResults[0];
+      const parsedText = parsed?.ParsedText;
+      if (typeof parsedText === "string" && parsedText.trim().length > 0) {
+        return parsedText;
+      }
+    }
+    return null;
+  } catch (err) {
+    console.error("callOcrSpaceByUrl error:", err);
+    return null;
   }
-  throw new Error("pdfjs-dist not found. Tried: " + tried.join(" | "));
-}
-
-async function extractPdfWithPdfJsRuntime(buffer: Buffer): Promise<string> {
-  const pdfjsMod = requirePdfJsRuntime();
-  const pdfjsAny = (pdfjsMod.default ?? pdfjsMod) as any;
-
-  // disable worker — important to prevent attempts to load pdf.worker.mjs
-  try {
-    if (!pdfjsAny.GlobalWorkerOptions) pdfjsAny.GlobalWorkerOptions = {};
-    // set workerSrc empty and request disableWorker in getDocument options below
-    pdfjsAny.GlobalWorkerOptions.workerSrc = "";
-  } catch (e) {
-    // ignore
-  }
-
-  const uint8 = new Uint8Array(buffer);
-
-  // Important: pass disableWorker: true to avoid worker usage
-  const loadingTask = (pdfjsAny as any).getDocument({ data: uint8, disableWorker: true });
-  const pdf = await loadingTask.promise;
-  let outText = "";
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const pageText = content.items.map((item: any) => (item.str || "")).join(" ");
-    outText += pageText + "\n\n";
-  }
-  return outText;
 }
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => ({} as any));
     const file_url: string | undefined = body?.file_url;
-    if (!file_url) return NextResponse.json({ error: "file_url is required" }, { status: 400 });
 
+    if (!file_url) {
+      return NextResponse.json({ error: "file_url is required" }, { status: 400 });
+    }
+
+    // fetch file
     const res = await fetch(file_url);
     if (!res.ok) {
       const txt = await res.text().catch(() => "");
       return NextResponse.json({ error: `Failed to fetch file: ${res.status} ${txt}` }, { status: 502 });
     }
 
-    const arrayBuffer = await res.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const ext = extFromUrl(file_url);
     const contentType = (res.headers.get("content-type") || "").toLowerCase();
+    const arrayBuffer = await res.arrayBuffer();
+    const uint8 = new Uint8Array(arrayBuffer);
+    const byteLength = uint8.byteLength;
+    const ext = extFromUrl(file_url);
 
-    // PDF branch
+    const meta = { file_url, ext, contentType, bytes: byteLength };
+    console.log("extract: starting", meta);
+
+    // ------------- PDF flow (UNPDF -> UNPDF OCR -> OCR.space) -------------
     if (ext === "pdf" || contentType.includes("pdf")) {
-      const pdfParseFn = await tryPdfParse();
-      if (pdfParseFn) {
-        try {
-          const parsed = await pdfParseFn(buffer);
-          return NextResponse.json({ text: parsed?.text ?? "" });
-        } catch (err: any) {
-          console.warn("pdf-parse runtime error; falling back to pdfjs:", String(err?.message ?? err));
-        }
-      }
-
-      // fallback to pdfjs-dist (pure JS) with disabled worker
+      // 1) UNPDF normal
       try {
-        const text = await extractPdfWithPdfJsRuntime(buffer);
-        return NextResponse.json({ text });
+        const result: any = await extractText(uint8);
+        const text = typeof result?.text === "string" ? String(result.text) : "";
+        console.log("UNPDF normal keys:", Object.keys(result || {}), "textLen:", text.length);
+        if (text.trim().length > 0) {
+          return NextResponse.json({ text });
+        }
+
+        // 2) UNPDF OCR retry
+        try {
+          console.log("UNPDF: retry with OCR enabled");
+          const ocrResult: any = await extractText(uint8, { pdf: { enableOcr: true } } as any);
+          const ocrText = typeof ocrResult?.text === "string" ? String(ocrResult.text) : "";
+          console.log("UNPDF OCR keys:", Object.keys(ocrResult || {}), "textLen:", ocrText.length);
+          if (ocrText.trim().length > 0) {
+            return NextResponse.json({ text: ocrText, usedOcr: true });
+          }
+        } catch (ocrErr: any) {
+          console.warn("UNPDF OCR attempt failed:", String(ocrErr?.message ?? ocrErr));
+          // continue to external OCR fallback
+        }
+
+        // 3) External OCR fallback: OCR.space
+        const OCR_KEY = process.env.OCR_SPACE_API_KEY;
+        if (OCR_KEY) {
+          console.log("Calling OCR.space fallback for", file_url);
+          const ocrText = await callOcrSpaceByUrl(file_url, OCR_KEY);
+          if (ocrText && ocrText.trim().length > 0) {
+            return NextResponse.json({ text: ocrText, usedExternalOcr: "ocr.space" });
+          } else {
+            console.warn("OCR.space returned no text for", file_url);
+          }
+        } else {
+          console.warn("No OCR_SPACE_API_KEY present; skipping OCR.space fallback");
+        }
+
+        // all attempts failed — return diagnostics
+        return NextResponse.json(
+          {
+            error: "Failed to extract text from PDF",
+            meta,
+            unpdf: {
+              normal: summarizeResult(result),
+              // ocr summary may not exist if UNPDF OCR threw; attempt to include if present
+            },
+            note:
+              "Tried UNPDF normal, UNPDF OCR, and OCR.space fallback (if API key provided). This PDF likely contains images/scans; consider an advanced OCR pipeline.",
+          },
+          { status: 500 }
+        );
       } catch (err: any) {
-        console.error("pdfjs runtime error:", err);
-        return NextResponse.json({ error: "Failed to parse PDF (pdf-parse and pdfjs both failed)", details: String(err?.message ?? err) }, { status: 500 });
+        console.error("UNPDF call failed outright:", err?.message ?? err);
+        return NextResponse.json({ error: "UNPDF call failed", detail: String(err?.message ?? err) }, { status: 500 });
       }
     }
 
-    // DOCX / Word
+    // ------------- DOCX -> mammoth -------------
     if (ext === "docx" || ext === "doc" || contentType.includes("word") || contentType.includes("officedocument")) {
       try {
-        const result = await mammoth.extractRawText({ buffer });
-        return NextResponse.json({ text: result.value ?? "" });
+        const nodeBuffer = Buffer.from(arrayBuffer);
+        const result = await mammoth.extractRawText({ buffer: nodeBuffer });
+        const txt = result?.value ?? "";
+        return NextResponse.json({ text: txt });
       } catch (err: any) {
-        console.error("mammoth error:", err);
-        return NextResponse.json({ error: "Failed to extract DOCX" }, { status: 500 });
+        console.error("Mammoth error:", err?.message ?? err);
+        return NextResponse.json({ error: "Failed to extract DOCX", details: String(err?.message ?? err) }, { status: 500 });
       }
     }
 
-    // fallback: plain text
+    // ------------- TXT fallback -------------
     try {
-      const text = buffer.toString("utf8");
+      const text = new TextDecoder("utf-8").decode(uint8);
       return NextResponse.json({ text });
     } catch (err: any) {
-      console.error("fallback read error:", err);
+      console.error("fallback read error:", err?.message ?? err);
       return NextResponse.json({ error: "Unsupported file type or failed to read file" }, { status: 400 });
     }
   } catch (err: any) {
-    console.error("extract route error:", err);
-    return NextResponse.json({ error: err?.message ?? String(err) }, { status: 500 });
+    console.error("extract route error:", err?.message ?? err);
+    return NextResponse.json({ error: err?.message ?? "Server error" }, { status: 500 });
   }
 }
