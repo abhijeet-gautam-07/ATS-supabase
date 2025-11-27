@@ -343,6 +343,22 @@
   resolved "https://registry.npmjs.org/@napi-rs/canvas-win32-x64-msvc/-/canvas-win32-x64-msvc-0.1.82.tgz"
   integrity sha512-LN/i8VrvxTDmEEK1c10z2cdOTkWT76LlTGtyZe5Kr1sqoSomKeExAjbilnu1+oee5lZUgS5yfZ2LNlVhCeARuw==
 
+"@napi-rs/canvas@^0.1.69", "@napi-rs/canvas@^0.1.81", "@napi-rs/canvas@^0.1.82":
+  version "0.1.82"
+  resolved "https://registry.npmjs.org/@napi-rs/canvas/-/canvas-0.1.82.tgz"
+  integrity sha512-FGjyUBoF0sl1EenSiE4UV2WYu76q6F9GSYedq5EiOCOyGYoQ/Owulcv6rd7v/tWOpljDDtefXXIaOCJrVKem4w==
+  optionalDependencies:
+    "@napi-rs/canvas-android-arm64" "0.1.82"
+    "@napi-rs/canvas-darwin-arm64" "0.1.82"
+    "@napi-rs/canvas-darwin-x64" "0.1.82"
+    "@napi-rs/canvas-linux-arm-gnueabihf" "0.1.82"
+    "@napi-rs/canvas-linux-arm64-gnu" "0.1.82"
+    "@napi-rs/canvas-linux-arm64-musl" "0.1.82"
+    "@napi-rs/canvas-linux-riscv64-gnu" "0.1.82"
+    "@napi-rs/canvas-linux-x64-gnu" "0.1.82"
+    "@napi-rs/canvas-linux-x64-musl" "0.1.82"
+    "@napi-rs/canvas-win32-x64-msvc" "0.1.82"
+
 "@napi-rs/canvas@^0.1.80", "@napi-rs/canvas@0.1.80":
   version "0.1.80"
   resolved "https://registry.npmjs.org/@napi-rs/canvas/-/canvas-0.1.80.tgz"
@@ -358,22 +374,6 @@
     "@napi-rs/canvas-linux-x64-gnu" "0.1.80"
     "@napi-rs/canvas-linux-x64-musl" "0.1.80"
     "@napi-rs/canvas-win32-x64-msvc" "0.1.80"
-
-"@napi-rs/canvas@^0.1.81", "@napi-rs/canvas@^0.1.82":
-  version "0.1.82"
-  resolved "https://registry.npmjs.org/@napi-rs/canvas/-/canvas-0.1.82.tgz"
-  integrity sha512-FGjyUBoF0sl1EenSiE4UV2WYu76q6F9GSYedq5EiOCOyGYoQ/Owulcv6rd7v/tWOpljDDtefXXIaOCJrVKem4w==
-  optionalDependencies:
-    "@napi-rs/canvas-android-arm64" "0.1.82"
-    "@napi-rs/canvas-darwin-arm64" "0.1.82"
-    "@napi-rs/canvas-darwin-x64" "0.1.82"
-    "@napi-rs/canvas-linux-arm-gnueabihf" "0.1.82"
-    "@napi-rs/canvas-linux-arm64-gnu" "0.1.82"
-    "@napi-rs/canvas-linux-arm64-musl" "0.1.82"
-    "@napi-rs/canvas-linux-riscv64-gnu" "0.1.82"
-    "@napi-rs/canvas-linux-x64-gnu" "0.1.82"
-    "@napi-rs/canvas-linux-x64-musl" "0.1.82"
-    "@napi-rs/canvas-win32-x64-msvc" "0.1.82"
 
 "@next/env@16.0.4":
   version "16.0.4"
@@ -3607,6 +3607,11 @@ undici-types@~6.21.0:
   resolved "https://registry.npmjs.org/undici-types/-/undici-types-6.21.0.tgz"
   integrity sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==
 
+unpdf@^1.4.0:
+  version "1.4.0"
+  resolved "https://registry.npmjs.org/unpdf/-/unpdf-1.4.0.tgz"
+  integrity sha512-TahIk0xdH/4jh/MxfclzU79g40OyxtP00VnEUZdEkJoYtXAHWLiir6t3FC6z3vDqQTzc2ZHcla6uEiVTNjejuA==
+
 unrs-resolver@^1.6.2:
   version "1.11.1"
   resolved "https://registry.npmjs.org/unrs-resolver/-/unrs-resolver-1.11.1.tgz"
@@ -3782,7 +3787,7 @@ yocto-queue@^0.1.0:
   resolved "https://registry.npmjs.org/zod-validation-error/-/zod-validation-error-4.0.2.tgz"
   integrity sha512-Q6/nZLe6jxuU80qb/4uJ4t5v2VEZ44lzQjPDhYJNztRQ4wyWc6VF3D3Kb/fAuPetZQnhS3hnajCf9CsWesghLQ==
 
-"zod@^3.25.0 || ^4.0.0":
+"zod@^3.25.0 || ^4.0.0", zod@^4.1.13:
   version "4.1.13"
   resolved "https://registry.npmjs.org/zod/-/zod-4.1.13.tgz"
   integrity sha512-AvvthqfqrAhNH9dnfmrfKzX5upOdjUVJYFqNSlkmGf64gRaTzlPwz99IHYnVs28qYAybvAlBV+H7pn0saFY4Ig==
