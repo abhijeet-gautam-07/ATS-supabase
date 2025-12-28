@@ -62,7 +62,7 @@ export async function POST(req: Request) {
     let modelResp: any;
     try {
       modelResp = await ai.models.generateContent({
-        model: "gemini-2.0-flash", // change if you prefer other available model
+        model: "gemini-2.5-flash", // change if you prefer other available model
         contents: buildPrompt(extractedText, jobDescription, candidateName),
       });
     } catch (aiErr: any) {
