@@ -27,7 +27,7 @@ const items = [
     icon: UploadIcon,
   },
   {
-    title: "Logout",
+    title: "Sign Out",
     url: "/api/auth/signout",
     icon: LogOutIcon,
   },
@@ -38,15 +38,17 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Menu</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-lg font-semibold">Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <Link href={item.url}>
-                      <item.icon className="mr-2 h-4 w-4" />
-                      <span>{item.title}</span>
+                    <Link href={item.url} className="flex items-center gap-3">
+                      <item.icon className="h-5 w-5" />
+                      <span className="text-sm font-medium"> {/* Increased sizes */}
+                        {item.title}
+                      </span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

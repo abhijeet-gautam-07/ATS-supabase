@@ -143,7 +143,7 @@ export default function UploadPage() {
         </label>
 
         <label className="block">
-          <span className="text-sm font-medium">Resume file (PDF, DOCX, TXT)</span>
+          <span className="text-sm font-medium">Resume file (PDF, DOCX, TXT) </span>
           <input type="file" accept=".pdf,.docx,.doc,.txt" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="mt-1" />
         </label>
 
